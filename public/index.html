@@ -1,0 +1,112 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <style>
+        #cnv {
+            border: solid 1px black;
+            background: black;
+        }
+    </style>
+</head>
+
+<body>
+    <h1> Web browser in web browser </h1>
+    <p> Below is a web browser: </p>
+    <canvas id="cnv" width="800" height="600">Your browser does not support HTML5 canvas.</canvas>
+    <br>
+    <button id="start">Connect</button>
+    <br>
+    <h2> Visit website </h2>
+    <button id="back">←</button>
+    <button id="forward">→</button>
+    <br><br>
+    <textarea id="c" placeholder="Place URL here..."></textarea><br>
+    <button disabled id="rc"> Visit! </button>
+    <br>
+    <h2> Errors </h2>
+    <textarea id="err" placeholder="Errors will show up here..."></textarea>
+    <script>
+        let canvas = document.querySelector('#cnv');
+        let ctx = canvas.getContext('2d');
+        canvas.tabIndex = 1000;
+        document.querySelector('#start').onclick = () => {
+            const connection = new WebSocket('ws://localhost:8080/c');
+            connection.on = connection.addEventListener;
+            connection.on('message', (m) => {
+                let message = JSON.parse(m.data);
+                switch (message.type) {
+                    case "render":
+                        var img = new Image;
+                        img.addEventListener("load", function() {
+                            ctx.drawImage(img, 0, 0);
+                        });
+                        img.src = message.value;
+                        break;
+                    case "error":
+                        document.querySelector('#err').value += message.value + '\n';
+                        break;
+                }
+            })
+            connection.on('open', () => {
+                console.log('open');
+                document.querySelector('#rc').disabled = false;
+                document.querySelector('#start').disabled = true;
+                document.querySelector('#rc').onclick = () => connection.send(JSON.stringify({
+                    type: "navigate",
+                    value: document.querySelector('#c').value
+                }))
+                document.querySelector('#back').onclick = () => connection.send(JSON.stringify({
+                    type: "back",
+                    value: null
+                }))
+                document.querySelector('#forward').onclick = () => connection.send(JSON.stringify({
+                    type: "forward",
+                    value: null
+                }))
+                canvas.onkeydown = (e) => {
+                    if (!e.ctrlKey) {
+                        connection.send(JSON.stringify({
+                            type: "keydown",
+                            value: e.key
+                        }));
+                    } else {
+                        connection.send(JSON.stringify({
+                            type: "ctrl-combo",
+                            value: e.key
+                        }));
+                    }
+                }
+                document.querySelector('#cnv').addEventListener('mousedown', (e) => {
+                    connection.send(JSON.stringify({
+                        type: "mousedown",
+                        value: null
+                    }));
+                });
+                document.querySelector('#cnv').addEventListener('mouseup', (e) => {
+                    connection.send(JSON.stringify({
+                        type: "mouseup",
+                        value: null
+                    }));
+                });
+                document.querySelector('#cnv').addEventListener('mousemove', (e) => {
+                    connection.send(JSON.stringify({
+                        type: "mousemove",
+                        value: [e.offsetX, e.offsetY]
+                    }));
+                });
+                document.querySelector('#cnv').addEventListener('dblclick', function(e) {
+                    connection.send(JSON.stringify({
+                        type: "nclick",
+                        value: {
+                            pos: {x: e.offsetX, y: e.offsetY},
+                            times: 2
+                        }
+                    }));
+                });
+            })
+        }
+    </script>
+</body>
+
+</html>
